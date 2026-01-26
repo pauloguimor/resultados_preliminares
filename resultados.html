@@ -58,11 +58,21 @@ function filtrar() {
 </head>
 
 <body>
+
 <div class="container">
 <h1>Resultados Preliminares</h1>
 <p>Digite o nome do cargo ou da SRE para filtrar</p>
 
-<input type="text" id="filtro" onkeyup="filtrar()" placeholder="Ex: Matemática, Barbacena, Uberaba...">
+<div class="topbar">
+    <a href="index.html" class="botao-voltar">⬅️ Início</a>
+
+    <input
+        type="text"
+        id="filtro"
+        onkeyup="filtrar()"
+        placeholder="Filtrar por cargo ou SRE..."
+    >
+</div>
 
 <div class="lista">
 
