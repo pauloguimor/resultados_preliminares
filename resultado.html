@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Resultados</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root { --primary: #0066cc; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; }
+        
+        .topbar {
+            background: #fff; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
+        }
+        .btn-voltar { text-decoration: none; color: #666; font-weight: bold; }
+        
+        .filtros { display: flex; gap: 10px; flex-grow: 1; flex-wrap: wrap; }
+        select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; flex: 1; min-width: 200px; }
+        button.btn-filtrar { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button.btn-filtrar:hover { opacity: 0.9; }
+
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+
+        /* Área de Erro / Upload Manual */
+        #erro-container {
+            display: none; background: #fff3cd; border: 1px solid #ffeeba; color: #856404;
+            padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
+        }
+        .btn-arquivo { margin-top: 10px; }
+
+        /* Tabela */
+        .table-responsive { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: none; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #555; font-weight: 600; }
+        
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        .status-aprovado { background: #d4edda; color: #155724; }
+        .status-outro { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="index.html" class="btn-voltar">⬅ Voltar</a>
+    <div class="filtros">
+        <select id="selCargo" disabled><option>Aguardando dados...</option></select>
+        <select id="selSRE" disabled><option>Aguardando dados...</option></select>
+        <button class="btn-filtrar" onclick="aplicarFiltro()">🔍 Buscar</button>
+    </div>
+</div>
+
+<div class="container">
+    
+    <div id="loading" style="text-align:center; padding: 40px; color: #666;">
+        ⏳ Tentando carregar 'dados.csv'...
+    </div>
+
+    <div id="erro-container">
+        <h3>⚠️ Não foi possível carregar o arquivo automaticamente</h3>
+        <p>Isso é normal se você estiver testando no seu computador (bloqueio de segurança).</p>
+        <p><strong>Solução:</strong> Selecione o arquivo <code>dados.csv</code> abaixo:</p>
+        <input type="file" id="input-manual" accept=".csv" class="btn-arquivo" onchange="carregarManualmente(this)">
+    </div>
+
+    <div id="resultado-msg" style="margin-bottom:10px; font-weight:bold; color:#0066cc;"></div>
+
+    <div class="table-responsive" id="tabela-container">
+        <table id="tabela-resultados">
+            <thead>
+                <tr>
+                    <th>#</th> <th>Nome</th> <th>Cargo</th> <th>SRE</th> 
+                    <th>Obj.</th> <th>Red.</th> <th>Tít.</th> <th>Total</th> <th>Situação</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-resultados"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let todosDados = [];
+
+    // Tenta carregar automaticamente ao abrir
+    window.onload = function() {
+        Papa.parse("dados.csv", {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                sucessoCarregamento(results.data);
+            },
+            error: function() {
+                // Se der erro (bloqueio local), mostra o botão de upload manual
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('erro-container').style.display = 'block';
+            }
+        });
+    };
+
+    // Função para carregar pelo botão manual
+    function carregarManualmente(input) {
+        if (input.files.length > 0) {
+            document.getElementById('erro-container').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').innerText = "Processando arquivo...";
+            
+            Papa.parse(input.files[0], {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    sucessoCarregamento(results.data);
+                }
+            });
+        }
+    }
+
+    // O que fazer quando os dados chegam (seja automático ou manual)
+    function sucessoCarregamento(dados) {
+        todosDados = dados;
+        document.getElementById('loading').style.display = 'none';
+        
+        // Popula os filtros
+        const cargos = new Set();
+        const sres = new Set();
+        todosDados.forEach(linha => {
+            if(linha.CARGO) cargos.add(linha.CARGO.trim());
+            if(linha.SRE) sres.add(linha.SRE.trim());
+        });
+
+        preencherSelect('selCargo', Array.from(cargos).sort(), "Selecione o Cargo");
+        preencherSelect('selSRE', Array.from(sres).sort(), "Selecione a SRE");
+        
+        document.getElementById('selCargo').disabled = false;
+        document.getElementById('selSRE').disabled = false;
+    }
+
+    function preencherSelect(id, lista, placeholder) {
+        const select = document.getElementById(id);
+        select.innerHTML = `<option value="">${placeholder}</option>`;
+        lista.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item;
+            option.innerText = item;
+            select.appendChild(option);
+        });
+    }
+
+    function aplicarFiltro() {
+        const cargo = document.getElementById('selCargo').value;
+        const sre = document.getElementById('selSRE').value;
+        
+        if (!cargo || !sre) { alert("Selecione Cargo e SRE!"); return; }
+
+        const filtrados = todosDados.filter(d => d.CARGO?.trim() === cargo && d.SRE?.trim() === sre);
+        const tbody = document.getElementById('tbody-resultados');
+        
+        tbody.innerHTML = "";
+        document.getElementById('resultado-msg').innerText = `${filtrados.length} resultados encontrados.`;
+        document.getElementById('tabela-container').style.display = filtrados.length ? "block" : "none";
+
+        filtrados.forEach(d => {
+            const cls = d.SITUACAO?.toLowerCase().includes('aprovado') ? 'status-aprovado' : 'status-outro';
+            tbody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${d.ORDEM}</td> <td><strong>${d.NOME}</strong></td> <td>${d.CARGO}</td> <td>${d.SRE}</td>
+                    <td>${d.OBJETIVA}</td> <td>${d.REDACAO}</td> <td>${d.TITULOS}</td>
+                    <td style="font-weight:bold; color:#0066cc;">${d.TOTAL}</td>
+                    <td><span class="status-badge ${cls}">${d.SITUACAO}</span></td>
+                </tr>
+            `);
+        });
+    }
+</script>
+
+</body>
+</html>
