@@ -2,96 +2,40 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Resultados – SEE/MG</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- PapaParse -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:Arial, Helvetica, sans-serif;
-  background:#f4f6f8;
-}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8}
+header,footer{position:fixed;left:0;right:0;background:#0b3c6d;color:#fff;z-index:100}
+header{top:0;padding:14px;text-align:center;font-size:20px;font-weight:bold}
+footer{bottom:0;padding:12px;text-align:center}
 
-header, footer{
-  position:fixed;
-  left:0;
-  right:0;
-  background:#0b3c6d;
-  color:#fff;
-  z-index:100;
-}
+.container{padding:90px 10px 120px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+select,input,button{padding:10px;font-size:16px}
+select,input{flex:1}
 
-header{
-  top:0;
-  padding:14px;
-  text-align:center;
-  font-size:20px;
-  font-weight:bold;
-}
+.table-wrap{max-height:65vh;overflow:auto;background:#fff;border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{border:1px solid #ccc;padding:8px;text-align:center;font-size:14px}
+th{background:#eee;position:sticky;top:0}
 
-footer{
-  bottom:0;
-  padding:12px;
-  text-align:center;
-}
+.status-aprovado{background:#2ecc71;color:#fff;padding:4px 8px;border-radius:6px}
+.status-outro{background:#aaa;color:#fff;padding:4px 8px;border-radius:6px}
 
-.container{
-  padding:90px 10px 120px;
-}
+.pix-btn{background:#2ecc71;color:#fff;border:none;padding:10px 18px;
+border-radius:6px;font-size:16px;cursor:pointer;margin-top:6px}
 
-.controls{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin-bottom:10px;
-}
+#loading{text-align:center;font-size:18px;margin-top:40px}
+#erro-container{display:none;text-align:center}
 
-select, input{
-  padding:10px;
-  font-size:16px;
-  flex:1;
-}
-
-.table-wrap{
-  max-height:65vh;
-  overflow:auto;
-  background:#fff;
-  border-radius:6px;
-}
-
-table{
-  border-collapse:collapse;
-  width:100%;
-  min-width:900px;
-}
-
-th, td{
-  border:1px solid #ccc;
-  padding:8px;
-  text-align:center;
-  font-size:14px;
-}
-
-th{
-  background:#eee;
-  position:sticky;
-  top:0;
-}
-
-.pix-btn{
-  background:#2ecc71;
-  color:#fff;
-  border:none;
-  padding:10px 18px;
-  border-radius:6px;
-  font-size:16px;
-  cursor:pointer;
-  margin-top:6px;
-}
-
-@media (max-width:768px){
-  table{min-width:700px}
-  th,td{font-size:12px;padding:6px}
+@media(max-width:768px){
+table{min-width:700px}
+th,td{font-size:12px;padding:6px}
 }
 </style>
 </head>
@@ -102,110 +46,127 @@ th{
 
 <div class="container">
 
-  <div class="controls">
-    <select id="cargo"></select>
-    <select id="sre"></select>
-    <input id="busca" placeholder="Digite o nome do candidato">
-  </div>
+<div class="controls">
+<select id="selCargo" disabled></select>
+<select id="selSRE" disabled></select>
+<input id="busca" placeholder="Digite o nome do candidato">
+<button onclick="aplicarFiltro()">Filtrar</button>
+</div>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>ORDEM</th>
-          <th>NOME</th>
-          <th>OBJETIVA</th>
-          <th>REDAÇÃO</th>
-          <th>TÍTULOS</th>
-          <th>TOTAL</th>
-          <th>SITUAÇÃO</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  </div>
+<div id="loading">Carregando dados…</div>
+
+<div id="erro-container">
+<p>Não foi possível carregar automaticamente.</p>
+<input type="file" accept=".csv" onchange="carregarManualmente(this)">
+</div>
+
+<p id="resultado-msg"></p>
+
+<div id="tabela-container" style="display:none" class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ORDEM</th><th>NOME</th><th>CARGO</th><th>SRE</th>
+<th>OBJETIVA</th><th>REDAÇÃO</th><th>TÍTULOS</th>
+<th>TOTAL</th><th>SITUAÇÃO</th>
+</tr>
+</thead>
+<tbody id="tbody-resultados"></tbody>
+</table>
+</div>
 
 </div>
 
 <footer>
-  💙 Sua doação mantém o projeto ativo e em constante melhoria.<br>
-  <strong>Chave Pix:</strong> pauloguimor@yahoo.com.br<br>
-  <button class="pix-btn" onclick="copiarPix()">💚 Copiar Pix</button>
+💙 Sua doação mantém o projeto ativo e em constante melhoria.<br>
+<strong>Chave Pix:</strong> pauloguimor@yahoo.com.br<br>
+<button class="pix-btn" onclick="copiarPix()">💚 Copiar Pix</button>
 </footer>
 
 <script>
-const cargos = [
-  "ADMINISTRATIVO_PEDAGOGICO","AEE","ARTE","ASSISTENTE_SOCIAL","ATB","BIBLIOTECARIO",
-  "BIOLOGIA","EDUCACAO_FISICA","EEB","ENSINO_RELIGIOSO","FILOSOFIA","FISICA",
-  "GEOGRAFIA","HISTORIA","INGLES","INSPETOR_ESCOLAR","MATEMATICA","NUTRICIONISTA",
-  "PORTUGUES","PSICOLOGO","QUIMICA","SOCIOLOGIA","TDE","TERAPEUTA_OCUPACIONAL"
-];
+let todosDados = [];
 
-const cargoSel = document.getElementById("cargo");
-const sreSel   = document.getElementById("sre");
-const busca    = document.getElementById("busca");
-const tbody    = document.getElementById("tbody");
-
-let dados = [];
-
-// popula cargos
-cargoSel.innerHTML =
-  '<option value="">Selecione o cargo</option>' +
-  cargos.map(c => `<option value="${c}">${c.replace(/_/g," ")}</option>`).join("");
-
-cargoSel.onchange = () => {
-  if(!cargoSel.value) return;
-
-  fetch(`dados/${cargoSel.value}.csv`)
-    .then(r => r.text())
-    .then(texto => {
-      const linhas = texto.trim().split(/\r?\n/).map(l => l.split(","));
-      const header = linhas.shift();
-
-      dados = linhas.map(l => {
-        let obj = {};
-        header.forEach((h,i) => obj[h.trim()] = (l[i] || "").trim());
-        return obj;
-      });
-
-      // CORREÇÃO DO BUG "undefined"
-      const sres = [...new Set(
-        dados
-          .map(d => (d.SRE || "").trim())
-          .filter(s => s !== "")
-      )];
-
-      sreSel.innerHTML =
-        '<option value="">Todas SREs</option>' +
-        sres.map(s => `<option value="${s}">${s}</option>`).join("");
-
-      render();
-    });
+window.onload = function() {
+  Papa.parse("dados.csv", {
+    download:true,
+    header:true,
+    skipEmptyLines:true,
+    encoding:"ISO-8859-1",
+    complete:r=>sucessoCarregamento(r.data),
+    error:()=>{
+      document.getElementById('loading').style.display='none';
+      document.getElementById('erro-container').style.display='block';
+    }
+  });
 };
 
-[sreSel, busca].forEach(el => el.oninput = render);
-
-function render(){
-  tbody.innerHTML = "";
-
-  dados
-    .filter(d =>
-      (!sreSel.value || d.SRE === sreSel.value) &&
-      d.NOME.toLowerCase().includes(busca.value.toLowerCase())
-    )
-    .forEach(d => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${d.ORDEM}</td>
-          <td>${d.NOME}</td>
-          <td>${d.OBJETIVA}</td>
-          <td>${d.REDACAO}</td>
-          <td>${d.TITULOS}</td>
-          <td>${d.TOTAL}</td>
-          <td>${d.SITUACAO}</td>
-        </tr>
-      `;
+function carregarManualmente(input){
+  if(input.files.length>0){
+    Papa.parse(input.files[0],{
+      header:true,
+      skipEmptyLines:true,
+      encoding:"ISO-8859-1",
+      complete:r=>sucessoCarregamento(r.data)
     });
+  }
+}
+
+function sucessoCarregamento(dados){
+  todosDados=dados;
+  document.getElementById('loading').style.display='none';
+
+  const cargos=new Set(), sres=new Set();
+  dados.forEach(l=>{
+    if(l.CARGO) cargos.add(l.CARGO.trim());
+    if(l.SRE) sres.add(l.SRE.trim());
+  });
+
+  preencherSelect("selCargo",[...cargos].sort(),"Selecione o Cargo");
+  preencherSelect("selSRE",[...sres].sort(),"Selecione a SRE");
+
+  selCargo.disabled=false;
+  selSRE.disabled=false;
+}
+
+function preencherSelect(id,lista,txt){
+  const s=document.getElementById(id);
+  s.innerHTML=`<option value="">${txt}</option>`;
+  lista.forEach(v=>s.innerHTML+=`<option>${v}</option>`);
+}
+
+function aplicarFiltro(){
+  const cargo=selCargo.value, sre=selSRE.value;
+  if(!cargo||!sre){alert("Selecione Cargo e SRE");return;}
+
+  const filtrados=todosDados.filter(d=>
+    d.CARGO?.trim()==cargo && d.SRE?.trim()==sre &&
+    d.NOME.toLowerCase().includes(busca.value.toLowerCase())
+  );
+
+  const tbody=document.getElementById("tbody-resultados");
+  tbody.innerHTML="";
+  document.getElementById("tabela-container").style.display="block";
+
+  document.getElementById("resultado-msg").innerText=
+    filtrados.length+" resultados encontrados.";
+
+  filtrados.forEach(d=>{
+    const cls=d.SITUACAO?.toLowerCase().includes("aprovado")?
+      "status-aprovado":"status-outro";
+    tbody.insertAdjacentHTML("beforeend",`
+      <tr>
+        <td>${d.ORDEM}</td>
+        <td><strong>${d.NOME}</strong></td>
+        <td>${d.CARGO}</td>
+        <td>${d.SRE}</td>
+        <td>${d.OBJETIVA||"-"}</td>
+        <td>${d.REDACAO||"-"}</td>
+        <td>${d.TITULOS||"-"}</td>
+        <td><b>${d.TOTAL}</b></td>
+        <td><span class="${cls}">${d.SITUACAO}</span></td>
+      </tr>
+    `);
+  });
 }
 
 function copiarPix(){
