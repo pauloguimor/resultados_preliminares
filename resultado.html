@@ -13,24 +13,26 @@
             background: #fff; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             position: sticky; top: 0; z-index: 100; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
         }
-        .btn-voltar { text-decoration: none; color: #666; font-weight: bold; }
+        .btn-voltar { text-decoration: none; color: #666; font-weight: bold; font-size: 0.9rem; }
         
+        /* Botão de Correção de Acentos */
+        .btn-fix {
+            background: #fff3cd; color: #856404; border: 1px solid #ffeeba;
+            padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 0.85rem; font-weight: bold;
+            display: flex; align-items: center; gap: 5px; transition: 0.2s;
+        }
+        .btn-fix:hover { background: #ffe8a1; }
+
         .filtros { display: flex; gap: 10px; flex-grow: 1; flex-wrap: wrap; }
-        select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; flex: 1; min-width: 200px; }
+        select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; flex: 1; min-width: 150px; }
         button.btn-filtrar { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         button.btn-filtrar:hover { opacity: 0.9; }
 
         .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
-
-        /* Área de Erro / Upload Manual */
-        #erro-container {
-            display: none; background: #fff3cd; border: 1px solid #ffeeba; color: #856404;
-            padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;
-        }
-        .btn-arquivo { margin-top: 10px; }
-
-        /* Tabela */
-        .table-responsive { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: none; }
+        #loading { text-align: center; padding: 40px; color: #666; }
+        #erro-container { display: none; background: #fff3cd; padding: 20px; border-radius: 8px; text-align: center; }
+        
+        .table-responsive { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: none; margin-top: 20px; }
         table { width: 100%; border-collapse: collapse; min-width: 800px; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #555; font-weight: 600; }
@@ -44,27 +46,28 @@
 
 <div class="topbar">
     <a href="index.html" class="btn-voltar">⬅ Voltar</a>
+    
+    <button class="btn-fix" onclick="alternarCodificacao()" title="Clique se os nomes estiverem com ? ou símbolos estranhos">
+        🛠️ Corrigir Acentos
+    </button>
+
     <div class="filtros">
-        <select id="selCargo" disabled><option>Aguardando dados...</option></select>
-        <select id="selSRE" disabled><option>Aguardando dados...</option></select>
+        <select id="selCargo" disabled><option>Carregando...</option></select>
+        <select id="selSRE" disabled><option>Carregando...</option></select>
         <button class="btn-filtrar" onclick="aplicarFiltro()">🔍 Buscar</button>
     </div>
 </div>
 
 <div class="container">
-    
-    <div id="loading" style="text-align:center; padding: 40px; color: #666;">
-        ⏳ Tentando carregar 'dados.csv'...
-    </div>
+    <div id="loading">⏳ Carregando dados...</div>
 
     <div id="erro-container">
-        <h3>⚠️ Não foi possível carregar o arquivo automaticamente</h3>
-        <p>Isso é normal se você estiver testando no seu computador (bloqueio de segurança).</p>
-        <p><strong>Solução:</strong> Selecione o arquivo <code>dados.csv</code> abaixo:</p>
-        <input type="file" id="input-manual" accept=".csv" class="btn-arquivo" onchange="carregarManualmente(this)">
+        <h3>⚠️ Não foi possível carregar automaticamente</h3>
+        <p>Selecione o arquivo <code>dados.csv</code> manualmente:</p>
+        <input type="file" id="input-manual" accept=".csv" onchange="carregarManualmente(this)">
     </div>
 
-    <div id="resultado-msg" style="margin-bottom:10px; font-weight:bold; color:#0066cc;"></div>
+    <div id="resultado-msg" style="margin-top:10px; font-weight:bold; color:#0066cc;"></div>
 
     <div class="table-responsive" id="tabela-container">
         <table id="tabela-resultados">
@@ -81,56 +84,77 @@
 
 <script>
     let todosDados = [];
+    let codificacaoAtual = "ISO-8859-1"; // Começa tentando o padrão do Excel
+    let arquivoManual = null; // Guarda o arquivo se o usuário usou upload manual
 
-    // Tenta carregar automaticamente ao abrir
+    // 1. Tenta carregar ao abrir
     window.onload = function() {
-        Papa.parse("dados.csv", {
-            download: true,
+        carregarCSV("dados.csv");
+    };
+
+    // 2. Função Principal de Carga
+    function carregarCSV(origem) {
+        // Adiciona um numero aleatorio para evitar cache do navegador
+        const url = (typeof origem === 'string') ? origem + "?t=" + new Date().getTime() : origem;
+        
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading').innerText = `Lendo arquivo em modo ${codificacaoAtual}...`;
+        document.getElementById('tabela-container').style.display = 'none';
+
+        Papa.parse(origem, {
+            download: typeof origem === 'string', // Só faz download se for URL
             header: true,
             skipEmptyLines: true,
-            encoding: "ISO-8859-1",  // <--- O SEGREDO: Força ler o formato do Excel
+            encoding: codificacaoAtual, // Usa a codificação da vez
             complete: function(results) {
-                sucessoCarregamento(results.data);
+                if (results.data && results.data.length > 0) {
+                    sucessoCarregamento(results.data);
+                } else {
+                    alert("O arquivo parece vazio ou ilegível.");
+                }
             },
             error: function() {
-                // Se der erro (bloqueio local), mostra o botão de upload manual
+                // Se falhar o automático, pede manual
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('erro-container').style.display = 'block';
             }
         });
-    };
+    }
 
-    // Função para carregar pelo botão manual (caso precise)
+    // 3. Botão "Corrigir Acentos"
+    function alternarCodificacao() {
+        // Troca entre UTF-8 e ISO-8859-1
+        codificacaoAtual = (codificacaoAtual === "ISO-8859-1") ? "UTF-8" : "ISO-8859-1";
+        
+        if (arquivoManual) {
+            carregarCSV(arquivoManual); // Recarrega o arquivo manual
+        } else {
+            carregarCSV("dados.csv"); // Recarrega o arquivo do servidor
+        }
+        alert(`Trocando codificação para: ${codificacaoAtual}. Se não arrumar, clique de novo!`);
+    }
+
     function carregarManualmente(input) {
         if (input.files.length > 0) {
+            arquivoManual = input.files[0];
             document.getElementById('erro-container').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').innerText = "Processando arquivo...";
-            
-            Papa.parse(input.files[0], {
-                header: true,
-                skipEmptyLines: true,
-                encoding: "ISO-8859-1", // <--- Garante acentos aqui também
-                complete: function(results) {
-                    sucessoCarregamento(results.data);
-                }
-            });
+            carregarCSV(arquivoManual);
         }
     }
 
-    // O que fazer quando os dados chegam
     function sucessoCarregamento(dados) {
         todosDados = dados;
         document.getElementById('loading').style.display = 'none';
         
-        if(dados.length === 0) {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').innerText = "Arquivo vazio ou ilegível.";
-            return;
-        }
-
+        // Limpa e popula selects
         const cargos = new Set();
         const sres = new Set();
+
+        // Verifica se carregou as colunas certas
+        const primeiraLinha = dados[0];
+        if(!primeiraLinha.hasOwnProperty('CARGO') || !primeiraLinha.hasOwnProperty('SRE')) {
+            alert("Atenção: As colunas CARGO ou SRE não foram encontradas. Verifique se o arquivo está separado por vírgulas corretamente.");
+        }
 
         todosDados.forEach(linha => {
             if(linha.CARGO) cargos.add(linha.CARGO.trim());
@@ -142,6 +166,11 @@
         
         document.getElementById('selCargo').disabled = false;
         document.getElementById('selSRE').disabled = false;
+        
+        // Limpa tabela anterior
+        document.getElementById('tbody-resultados').innerHTML = "";
+        document.getElementById('tabela-container').style.display = 'none';
+        document.getElementById('resultado-msg').innerText = "";
     }
 
     function preencherSelect(id, lista, placeholder) {
@@ -163,37 +192,23 @@
 
         const filtrados = todosDados.filter(d => d.CARGO?.trim() === cargo && d.SRE?.trim() === sre);
         const tbody = document.getElementById('tbody-resultados');
-        const container = document.getElementById('tabela-container');
-        const msg = document.getElementById('resultado-msg');
         
         tbody.innerHTML = "";
         
         if (filtrados.length === 0) {
-            container.style.display = "none";
-            msg.innerText = "Nenhum candidato encontrado para essa combinação.";
+            document.getElementById('resultado-msg').innerText = "Nenhum resultado encontrado.";
             return;
         }
 
-        msg.innerText = `${filtrados.length} resultados encontrados.`;
+        document.getElementById('resultado-msg').innerText = `${filtrados.length} resultados encontrados.`;
         document.getElementById('tabela-container').style.display = "block";
 
         filtrados.forEach(d => {
             const cls = d.SITUACAO?.toLowerCase().includes('aprovado') ? 'status-aprovado' : 'status-outro';
-            
-            // Tratamento extra para garantir que texto apareça mesmo se campo estiver vazio
-            const objetiva = d.OBJETIVA || '-';
-            const redacao = d.REDACAO || '-';
-            const titulos = d.TITULOS || '-';
-
             tbody.insertAdjacentHTML('beforeend', `
                 <tr>
-                    <td>${d.ORDEM}</td> 
-                    <td><strong>${d.NOME}</strong></td> 
-                    <td>${d.CARGO}</td> 
-                    <td>${d.SRE}</td>
-                    <td>${objetiva}</td> 
-                    <td>${redacao}</td> 
-                    <td>${titulos}</td>
+                    <td>${d.ORDEM}</td> <td><strong>${d.NOME}</strong></td> <td>${d.CARGO}</td> <td>${d.SRE}</td>
+                    <td>${d.OBJETIVA || '-'}</td> <td>${d.REDACAO || '-'}</td> <td>${d.TITULOS || '-'}</td>
                     <td style="font-weight:bold; color:#0066cc;">${d.TOTAL}</td>
                     <td><span class="status-badge ${cls}">${d.SITUACAO}</span></td>
                 </tr>
@@ -201,5 +216,6 @@
         });
     }
 </script>
+
 </body>
 </html>
