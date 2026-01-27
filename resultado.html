@@ -88,6 +88,7 @@
             download: true,
             header: true,
             skipEmptyLines: true,
+            encoding: "ISO-8859-1",  // <--- O SEGREDO: Força ler o formato do Excel
             complete: function(results) {
                 sucessoCarregamento(results.data);
             },
@@ -99,7 +100,7 @@
         });
     };
 
-    // Função para carregar pelo botão manual
+    // Função para carregar pelo botão manual (caso precise)
     function carregarManualmente(input) {
         if (input.files.length > 0) {
             document.getElementById('erro-container').style.display = 'none';
@@ -109,6 +110,7 @@
             Papa.parse(input.files[0], {
                 header: true,
                 skipEmptyLines: true,
+                encoding: "ISO-8859-1", // <--- Garante acentos aqui também
                 complete: function(results) {
                     sucessoCarregamento(results.data);
                 }
@@ -116,14 +118,20 @@
         }
     }
 
-    // O que fazer quando os dados chegam (seja automático ou manual)
+    // O que fazer quando os dados chegam
     function sucessoCarregamento(dados) {
         todosDados = dados;
         document.getElementById('loading').style.display = 'none';
         
-        // Popula os filtros
+        if(dados.length === 0) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').innerText = "Arquivo vazio ou ilegível.";
+            return;
+        }
+
         const cargos = new Set();
         const sres = new Set();
+
         todosDados.forEach(linha => {
             if(linha.CARGO) cargos.add(linha.CARGO.trim());
             if(linha.SRE) sres.add(linha.SRE.trim());
@@ -155,17 +163,37 @@
 
         const filtrados = todosDados.filter(d => d.CARGO?.trim() === cargo && d.SRE?.trim() === sre);
         const tbody = document.getElementById('tbody-resultados');
+        const container = document.getElementById('tabela-container');
+        const msg = document.getElementById('resultado-msg');
         
         tbody.innerHTML = "";
-        document.getElementById('resultado-msg').innerText = `${filtrados.length} resultados encontrados.`;
-        document.getElementById('tabela-container').style.display = filtrados.length ? "block" : "none";
+        
+        if (filtrados.length === 0) {
+            container.style.display = "none";
+            msg.innerText = "Nenhum candidato encontrado para essa combinação.";
+            return;
+        }
+
+        msg.innerText = `${filtrados.length} resultados encontrados.`;
+        document.getElementById('tabela-container').style.display = "block";
 
         filtrados.forEach(d => {
             const cls = d.SITUACAO?.toLowerCase().includes('aprovado') ? 'status-aprovado' : 'status-outro';
+            
+            // Tratamento extra para garantir que texto apareça mesmo se campo estiver vazio
+            const objetiva = d.OBJETIVA || '-';
+            const redacao = d.REDACAO || '-';
+            const titulos = d.TITULOS || '-';
+
             tbody.insertAdjacentHTML('beforeend', `
                 <tr>
-                    <td>${d.ORDEM}</td> <td><strong>${d.NOME}</strong></td> <td>${d.CARGO}</td> <td>${d.SRE}</td>
-                    <td>${d.OBJETIVA}</td> <td>${d.REDACAO}</td> <td>${d.TITULOS}</td>
+                    <td>${d.ORDEM}</td> 
+                    <td><strong>${d.NOME}</strong></td> 
+                    <td>${d.CARGO}</td> 
+                    <td>${d.SRE}</td>
+                    <td>${objetiva}</td> 
+                    <td>${redacao}</td> 
+                    <td>${titulos}</td>
                     <td style="font-weight:bold; color:#0066cc;">${d.TOTAL}</td>
                     <td><span class="status-badge ${cls}">${d.SITUACAO}</span></td>
                 </tr>
@@ -173,6 +201,5 @@
         });
     }
 </script>
-
 </body>
 </html>
