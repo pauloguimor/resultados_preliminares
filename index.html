@@ -59,26 +59,9 @@
             font-size: 14px;
             color: #666;
         }
-	#mensagem-apoio {
-    		position: fixed;
-    		top: 20px;
-    		left: 50%;
-    		transform: translateX(-50%);
-    		background: #ffffff;
-    		padding: 12px 20px;
-    		border-radius: 8px;
-    		box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    		font-weight: bold;
-    		z-index: 9999;
-    		text-align: center;
-	}
     </style>
 </head>
 <body>
-
-<div id="mensagem-apoio">
-  Este site é independente. Se ajudou você, considere apoiar.
-</div>
 
 <div class="container">
     <h1>Resultados Preliminares – SEE/MG</h1>
@@ -154,15 +137,6 @@ function copiarPix() {
         Site independente – sem vínculo institucional com a SEE/MG
     </footer>
 </div>
-
-<script>
-setTimeout(() => {
-    const msg = document.getElementById("mensagem-apoio");
-    if (msg) {
-        msg.style.display = "none";
-    }
-}, 5000); // 5 segundos
-</script>
 
 </body>
 </html>
